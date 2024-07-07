@@ -48,14 +48,16 @@ import pybullet_data
 from urdf_parser import parse_urdf_file
 
 from pycontrollers.hexapod_controller import HexapodController
+from hexapod import Hexapod
 
 class HexapodSimulator:
-	def __init__(self,
+	def __init__(self, hexapod: Hexapod,
 			  	gui: bool, 
 				urdf: str, 
 				dt = 1./240.,  # the default for pybullet (see doc)
 				control_dt=0.05,
 				video=''):
+		self.hexapod = hexapod
 		self.GRAVITY = -9.81
 		self.dt = dt
 		self.control_dt = control_dt
@@ -73,7 +75,7 @@ class HexapodSimulator:
 		self.kp = 1./12.# * self.control_period
 		self.kd = 0.4
 		# the desired position for the joints
-		self.angles = np.zeros(18)
+		self.angles = np.array(self.hexapod.get_servo_angles())
 		# setup the GUI (disable the useless windows)
 		if gui:
 			self.physics = bc.BulletClient(connection_mode=p.GUI)
@@ -82,9 +84,10 @@ class HexapodSimulator:
 			self.physics.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
 			self.physics.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
 			self.physics.resetDebugVisualizerCamera(cameraDistance=1,
-                            						cameraYaw=20,
-			                             			cameraPitch=-20,
-            			                			cameraTargetPosition=[1, -0.5, 0.8])
+													cameraYaw=20,
+										 			cameraPitch=-20,
+													cameraTargetPosition=[1, -0.5, 0.8])
+			self.keys_pressed = set()
 		else:
 			self.physics = bc.BulletClient(connection_mode=p.DIRECT)
 
@@ -94,14 +97,16 @@ class HexapodSimulator:
 		self.physics.setTimeStep(self.dt)
 		self.physics.setPhysicsEngineParameter(fixedTimeStep=self.dt)
 		self.planeId = self.physics.loadURDF("plane.urdf")
+		self.set_friction(self.planeId, lateral_friction=1.0)  # Set the desired friction coefficient
 
-		start_pos = [0,0,0.15]
+		start_pos = self.hexapod.get_pos() + np.array([0, 0, 1.])
 		start_orientation = self.physics.getQuaternionFromEuler([0.,0,0])
 		self.botId = self.physics.loadURDF(urdf, basePosition=start_pos, baseOrientation=start_orientation, flags=(p.URDF_USE_SELF_COLLISION))
 		self.joint_list = self._make_joint_list(self.botId)
 
 		# bullet links number corresponding to the legs
 		self.leg_link_ids = [17, 14, 2, 5, 8, 11]
+		self.set_robot_feet_friction(self.botId, lateral_friction=1.0)  # Set the desired friction coefficient
 		self.descriptor = {17 : [], 14 : [], 2 : [], 5 : [], 8 : [], 11 : []}
 
 		# video makes things much slower
@@ -111,6 +116,7 @@ class HexapodSimulator:
 		# put the hexapod on the ground (gently)
 		self.physics.setRealTimeSimulation(0)
 		jointFrictionForce=1
+
 		for joint in range (self.physics.getNumJoints(self.botId)):
 			self.physics.setJointMotorControl2(self.botId, joint,
 				p.POSITION_CONTROL,
@@ -118,6 +124,13 @@ class HexapodSimulator:
 		for t in range(0, 100):
 			self.physics.stepSimulation()
 			self.physics.setGravity(0,0, self.GRAVITY)
+
+	def set_friction(self, body_id, lateral_friction):
+		self.physics.changeDynamics(body_id, -1, lateralFriction=lateral_friction)
+
+	def set_robot_feet_friction(self, robot_id, lateral_friction):
+		for leg_link_id in self.leg_link_ids:
+			self.physics.changeDynamics(robot_id, leg_link_id, lateralFriction=lateral_friction)
 
 
 	def get_state(self):
@@ -216,6 +229,7 @@ class HexapodSimulator:
 			else:
 				cns.append(0)
 			self.descriptor[l] = cns
+		print(f"Contact links: {link_ids}")
 
 		# don't forget to add the gravity force!
 		self.physics.setGravity(0, 0, self.GRAVITY)
@@ -240,17 +254,17 @@ class HexapodSimulator:
 	def _stream_to_ffmpeg(self, fname):
 		camera = self.physics.getDebugVisualizerCamera()
 		command = ['ffmpeg',
-                '-y',
-                '-f', 'rawvideo',
-                '-vcodec','rawvideo',
-                '-s',  '{}x{}'.format(camera[0], camera[1]),
-                '-pix_fmt', 'rgba',
-                '-r', str(24),
-                '-i', '-',
-                '-an',
-                '-vcodec', 'mpeg4',
+				'-y',
+				'-f', 'rawvideo',
+				'-vcodec','rawvideo',
+				'-s',  '{}x{}'.format(camera[0], camera[1]),
+				'-pix_fmt', 'rgba',
+				'-r', str(24),
+				'-i', '-',
+				'-an',
+				'-vcodec', 'mpeg4',
 				'-vb', '20M',
-                fname]
+				fname]
 		print(command)
 		self.ffmpeg_pipe = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -273,7 +287,40 @@ class HexapodSimulator:
 			if(joint_found==False):
 				joint_list += [1000] #if the joint is not here (aka broken leg case) put 1000
 		return joint_list
+	
+	def handle_key_events(self):
+		keys = self.physics.getKeyboardEvents()
+		for k, v in keys.items():
+			if v & p.KEY_IS_DOWN:
+				self.keys_pressed.add(k)
+			elif v & p.KEY_WAS_RELEASED:
+				self.keys_pressed.remove(k)
 
+	def move_robot(self, key):
+		force = 10
+		if key == ord('w'):
+			self.physics.applyExternalForce(self.botId, -1, [force, 0, 0], [0, 0, 0], p.WORLD_FRAME)
+		elif key == ord('s'):
+			self.physics.applyExternalForce(self.botId, -1, [-force, 0, 0], [0, 0, 0], p.WORLD_FRAME)
+		elif key == ord('a'):
+			self.physics.applyExternalTorque(self.botId, -1, [0, 0, force], p.WORLD_FRAME)
+		elif key == ord('d'):
+			self.physics.applyExternalTorque(self.botId, -1, [0, 0, -force], p.WORLD_FRAME)
+
+	def control_camera(self, key):
+		current_cam_pos, current_cam_target, current_cam_up, current_cam_yaw, current_cam_pitch, current_cam_roll, current_cam_dist = self.physics.getDebugVisualizerCamera()
+		if key == ord('i'):
+			current_cam_pos[2] += 0.1
+		elif key == ord('k'):
+			current_cam_pos[2] -= 0.1
+		elif key == ord('j'):
+			current_cam_pos[0] -= 0.1
+		elif key == ord('l'):
+			current_cam_pos[0] += 0.1
+		self.physics.resetDebugVisualizerCamera(current_cam_dist, current_cam_yaw, current_cam_pitch, current_cam_pos)
+
+def rpm_to_rad_s(rpm):
+	return rpm * 2 * np.pi / 60
 
 # for an unkwnon reason, connect/disconnect works only if this is a function
 def test_ref_controller():
@@ -286,28 +333,28 @@ def test_ref_controller():
 		"z_body": 0.04,
 		"m_body": 1.031,
 		# Servo 1
-		"torque_servo_1": 1.0,
+		"torque_servo_1": 0.8,
 		"lower_servo_1": -np.pi/2,
 		"upper_servo_1": np.pi/2,
-		"v_servo_1": 7.0,
+		"v_servo_1": rpm_to_rad_s(77.0),
 		# Phalanx 1
 		"l1": 0.06,
 		"r1": 0.02,
 		"m1": 0.02,
 		# Servo 2
-		"torque_servo_2": 1.0,
+		"torque_servo_2": 0.8,
 		"lower_servo_2": -np.pi/4,
 		"upper_servo_2": np.pi/4,
-		"v_servo_2": 7.0,
+		"v_servo_2": rpm_to_rad_s(77.0),
 		# Phalanx 2
 		"l2": 0.085,
 		"r2": 0.02,
 		"m2": 0.184,
 		# Servo 3
-		"torque_servo_3": 1.0,
+		"torque_servo_3": 0.8,
 		"lower_servo_3": -np.pi/4,
 		"upper_servo_3": np.pi/4,
-		"v_servo_3": 7.0,
+		"v_servo_3": rpm_to_rad_s(77.0),
 		# Phalanx 3
 		"l3": 0.14,
 		"r3": 0.025,
@@ -343,12 +390,14 @@ def test_ref_controller():
 		"y_body_leg_5": - r_body * np.sin(np.pi/3),
 		"z_body_leg_5": 0.0,
 	}
-
+	m_total = params["m_body"] + 6 * (params["m1"] + params["m2"] + params["m3"])
+	print(f"Total mass: {m_total}")
 	urf_path = parse_urdf_file(os.path.join(os.path.dirname(__file__), "parametric_hexapod.urdf"), params)
 	print(f"URDF file generated at {urf_path}")
 	simu = HexapodSimulator(gui=True, urdf=urf_path)
 	controller = HexapodController(ctrl)
 	for i in range(0, int(30./simu.dt)): # seconds
+		simu.handle_key_events()
 		simu.step(controller)
 		time.sleep(simu.dt)
 	print("=>", simu.get_pos()[0])
