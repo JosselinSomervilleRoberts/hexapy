@@ -72,7 +72,7 @@ class HexapodSimulator:
 		# kp*(erp*(desiredPosition-currentPosition)/dt)+currentVelocity+kd*(m_desiredVelocity - currentVelocity).
 		# here we set kp to be likely to reach the target position
 		# in the time between two calls of the controller
-		self.kp = 1./12.# * self.control_period
+		self.kp = 2./12.# * self.control_period
 		self.kd = 0.4
 		# the desired position for the joints
 		self.angles = np.array(self.hexapod.get_servo_angles())
@@ -117,12 +117,34 @@ class HexapodSimulator:
 		self.physics.setRealTimeSimulation(0)
 		jointFrictionForce=1
 
+		self.angles = self.hexapod.get_servo_angles()
 		for joint in range (self.physics.getNumJoints(self.botId)):
 			self.physics.setJointMotorControl2(self.botId, joint,
 				p.POSITION_CONTROL,
 				force=jointFrictionForce)
 		for t in range(0, 100):
 			self.physics.stepSimulation()
+			# move the joints
+			missing_joint_count = 0
+			j = 0
+			for joint in self.joint_list:
+				if(joint==1000):
+					missing_joint_count += 1
+				else:
+					info = self.physics.getJointInfo(self.botId, joint)
+					lower_limit = info[8]
+					upper_limit = info[9]
+					max_force = info[10]
+					max_velocity = info[11]
+					pos = min(max(lower_limit, self.angles[j]), upper_limit)
+					self.physics.setJointMotorControl2(self.botId, joint,
+						p.POSITION_CONTROL,
+						positionGain=self.kp,
+						velocityGain=self.kd,
+						targetPosition=pos,
+						force=max_force,
+						maxVelocity=max_velocity)
+				j += 1
 			self.physics.setGravity(0,0, self.GRAVITY)
 
 	def set_friction(self, body_id, lateral_friction):
@@ -229,7 +251,7 @@ class HexapodSimulator:
 			else:
 				cns.append(0)
 			self.descriptor[l] = cns
-		print(f"Contact links: {link_ids}")
+		# print(f"Contact links: {link_ids}")
 
 		# don't forget to add the gravity force!
 		self.physics.setGravity(0, 0, self.GRAVITY)
@@ -288,13 +310,38 @@ class HexapodSimulator:
 				joint_list += [1000] #if the joint is not here (aka broken leg case) put 1000
 		return joint_list
 	
-	def handle_key_events(self):
+	def handle_key_events(self, controller):
 		keys = self.physics.getKeyboardEvents()
 		for k, v in keys.items():
 			if v & p.KEY_IS_DOWN:
-				self.keys_pressed.add(k)
+				self.keys_pressed.add(chr(k))
 			elif v & p.KEY_WAS_RELEASED:
-				self.keys_pressed.remove(k)
+				self.keys_pressed.remove(chr(k))
+
+		direction = 0
+		speed = 0
+		phi_speed = 0
+		PHI_SPEED = 1.0
+		SPEED = 0.3
+		if "w" in self.keys_pressed:
+			direction = np.pi/2
+			speed = SPEED
+		elif "s" in self.keys_pressed:
+			direction = -np.pi/2
+			speed = SPEED
+		if "a" in self.keys_pressed:
+			direction = np.pi
+			speed = SPEED
+		elif "d" in self.keys_pressed:
+			direction = 0
+			speed = SPEED
+		if "j" in self.keys_pressed:
+			phi_speed = PHI_SPEED
+		elif "k" in self.keys_pressed:
+			phi_speed = -PHI_SPEED
+		controller.direction = direction
+		controller.speed = speed
+		controller.phi_speed = phi_speed
 
 	def move_robot(self, key):
 		force = 10

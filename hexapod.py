@@ -18,7 +18,7 @@ class Hexapod:
         self.legs_referentials = []
         for i in range(6):
             referential_start_leg = ParametricReferential(
-                parent=self.body_referentials[2],
+                parent=self.body_referential,
                 transformation=ParametricParameter(
                     params=[],
                     compute=lambda phi=leg_start_phi[i].copy(), pos=leg_start_pos[i].copy(): get_rotation_z_transform_matrix(phi, pos)
@@ -31,36 +31,23 @@ class Hexapod:
 
     def _build_body_referential(self):
         self.parameters = {
-            "pos": ValueParameter(Vector(0., 0., 1., self.base_referential)),
+            "pos": ValueParameter(Vector(0., 0., 1., self.base_referential)), "phi_orientation": ValueParameter(0),
             "phi": ValueParameter(0), "psi": ValueParameter(0), "xi": ValueParameter(0)
         }
-        self.body_referentials = [
-            ParametricReferential(
+        self.body_pseudo_referential = ParametricReferential(
                 parent=self.base_referential,
                 transformation=ParametricParameter(
-                    params=[self.parameters["pos"], self.parameters["phi"]],
+                    params=[self.parameters["pos"], self.parameters["phi_orientation"]],
                     compute=lambda pos, phi: get_rotation_z_transform_matrix(phi, pos.np3())
                 )
             )
-        ]
-        self.body_referentials += [
-            ParametricReferential(
-                parent=self.body_referentials[0],
+        self.body_referential = ParametricReferential(
+                parent=self.body_pseudo_referential,
                 transformation=ParametricParameter(
-                    params=[self.parameters["psi"]],
-                    compute=lambda psi: get_rotation_y_transform_matrix(psi, np.array([0, 0, 0]))
+                    params=[self.parameters["phi"], self.parameters["psi"], self.parameters["xi"]],
+                    compute=lambda phi, psi, xi: get_rotation_z_transform_matrix(phi, np.array([0, 0, 0])) @ get_rotation_y_transform_matrix(psi, np.array([0, 0, 0])) @ get_rotation_x_transform_matrix(xi, np.array([0, 0, 0]))
                 )
             )
-        ]
-        self.body_referentials += [
-            ParametricReferential(
-                parent=self.body_referentials[1],
-                transformation=ParametricParameter(
-                    params=[self.parameters["xi"]],
-                    compute=lambda xi: get_rotation_x_transform_matrix(xi, np.array([0, 0, 0]))
-                )
-            )
-        ]
 
     @property
     def x(self) -> float:
@@ -97,6 +84,13 @@ class Hexapod:
 
     def get_pos(self) -> np.ndarray:
         return self.parameters["pos"].value.np3()
+
+    @property
+    def phi_orientation(self) -> float:
+        return self.parameters["phi_orientation"].value
+    @phi_orientation.setter
+    def phi_orientation(self, phi_orientation: float):
+        self.parameters["phi_orientation"].value = phi_orientation
 
     @property
     def phi(self) -> float:

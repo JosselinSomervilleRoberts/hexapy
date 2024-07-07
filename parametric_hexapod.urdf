@@ -343,7 +343,7 @@
     <collision>
       <origin rpy="1.57079632679 0 0" xyz="eval[{r3}/2.] eval[{l3}/2.] 0"/>
       <geometry>
-        <box size="{r3} {r3} {l3}"/>
+        <box size="eval[2*{r3}] eval[2*{r3}] eval[{l3}-{r3}]"/>
       </geometry>
     </collision>
     <collision>
