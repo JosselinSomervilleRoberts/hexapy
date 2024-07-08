@@ -59,21 +59,21 @@
   </joint>
   <link name="leg_2_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -89,21 +89,21 @@
   </joint>
   <link name="leg_2_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>
@@ -163,21 +163,21 @@
   </joint>
   <link name="leg_3_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -193,21 +193,21 @@
   </joint>
   <link name="leg_3_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>
@@ -267,21 +267,21 @@
   </joint>
   <link name="leg_0_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -297,21 +297,21 @@
   </joint>
   <link name="leg_0_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>
@@ -327,27 +327,27 @@
   </joint>
   <link name="leg_0_3">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r3}/2.] eval[{l3}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l3}/2.-{r3}/2.] 0"/>
       <geometry>
-        <cylinder length="{l3}" radius="{r3}"/>
+        <cylinder length="eval[{l3}-{r3}]" radius="{r3}"/>
       </geometry>
       <material name="Color4"/>
     </visual>
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r3}/2.] eval[{l3}-{r3}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l3}-{r3}] 0"/>
       <geometry>
         <sphere radius="{r3}"/>
       </geometry>
       <material name="Color4"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r3}/2.] eval[{l3}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l3}/2.-{r3}/2.] 0"/>
       <geometry>
         <box size="eval[2*{r3}] eval[2*{r3}] eval[{l3}-{r3}]"/>
       </geometry>
     </collision>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r3}/2.] eval[{l3}-{r3}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l3}-{r3}] 0"/>
       <geometry>
         <sphere radius="{r3}"/>
       </geometry>
@@ -371,21 +371,21 @@
   </joint>
   <link name="leg_5_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -401,21 +401,21 @@
   </joint>
   <link name="leg_5_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>
@@ -475,21 +475,21 @@
   </joint>
   <link name="leg_1_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -505,21 +505,21 @@
   </joint>
   <link name="leg_1_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>
@@ -579,21 +579,21 @@
   </joint>
   <link name="leg_4_1">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
         <cylinder length="{l1}" radius="{r1}"/>
       </geometry>
       <material name="Color2"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <geometry>
-        <box size="{r1} {r1} {l1}"/>
+        <box size="eval[2*{r1}] eval[2*{r1}] {l1}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r1}/2.] eval[-{l1}/2.] 0"/>
+      <origin rpy="1.57079632679 0 0" xyz="0 eval[-{l1}/2.] 0"/>
       <mass value="{m1}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" ixy="0" ixz="0" iyy="eval[({m1}/12.)*({r1}*{r1}+{l1}*{l1})]" iyz="0" izz="eval[({m1}/12.)*(2*{r1}*{r1})]"/>
@@ -609,21 +609,21 @@
   </joint>
   <link name="leg_4_2">
     <visual>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
         <cylinder length="{l2}" radius="{r2}"/>
       </geometry>
       <material name="Color3"/>
     </visual>
     <collision>
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <geometry>
-        <box size="{r2} {r2} {l2}"/>
+        <box size="eval[2*{r2}] eval[2*{r2}] {l2}"/>
       </geometry>
     </collision>
     <inertial>
       <!-- CENTER OF MASS -->
-      <origin rpy="1.57079632679 0 0" xyz="eval[{r2}/2.] eval[-{l2}/2.] 0"/>
+      	<origin rpy="1.57079632679 0 0" xyz="0 eval[-{l2}/2.] 0"/>
       <mass value="{m2}"/>
       <!-- box inertia: 1/12*m(y^2+z^2), ... -->
       <inertia ixx="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" ixy="0" ixz="0" iyy="eval[({m2}/12.)*({r2}*{r2}+{l2}*{l2})]" iyz="0" izz="eval[({m2}/12.)*(2*{r2}*{r2})]"/>

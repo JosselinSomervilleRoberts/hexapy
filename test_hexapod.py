@@ -9,7 +9,7 @@ from urdf_parser import parse_urdf_file
 import time
 
 
-BODY_HEIGHT = 0.08
+BODY_HEIGHT = 0.12
 R_LEGS = 0.3
 
 class WalkingController:
@@ -107,6 +107,7 @@ class WalkingController:
             position_np3 = self.hexapod.legs[i].get_positions()[-1].in_ref(self.hexapod.base_referential).np3()
             angles += self.hexapod.legs[i].get_angles()
             positions.append(position_np3)
+        #return [0.] * 18, positions
         return angles, positions
 
             
@@ -319,6 +320,14 @@ if __name__ == "__main__":
     for i in range(0, int(30./simu.dt)): # seconds
         simu.handle_key_events(controller)
         simu.step(controller)
+        real_angles = simu.get_joints_positions()
+        commands = np.array([float(angle) for angle in hexapod.get_servo_angles()])
+        print(hexapod.get_pos())
+        diff = np.abs(real_angles - commands)
+        # Round to 3 decimals
+        diff = np.round(diff, 3)
+        print(f"Real angles: {real_angles}")
+        print(f"Diff angles: {diff}")
         time.sleep(simu.dt)
     print("=>", simu.get_pos()[0])
     simu.destroy()

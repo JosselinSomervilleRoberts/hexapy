@@ -38,14 +38,14 @@ class Hexapod:
                 parent=self.base_referential,
                 transformation=ParametricParameter(
                     params=[self.parameters["pos"], self.parameters["phi_orientation"]],
-                    compute=lambda pos, phi: get_rotation_z_transform_matrix(phi, pos.np3())
+                    compute=lambda pos, phi: get_rotation_z_transform_matrix(phi, np.array([pos.x, pos.y, 0.]))
                 )
             )
         self.body_referential = ParametricReferential(
                 parent=self.body_pseudo_referential,
                 transformation=ParametricParameter(
-                    params=[self.parameters["phi"], self.parameters["psi"], self.parameters["xi"]],
-                    compute=lambda phi, psi, xi: get_rotation_z_transform_matrix(phi, np.array([0, 0, 0])) @ get_rotation_y_transform_matrix(psi, np.array([0, 0, 0])) @ get_rotation_x_transform_matrix(xi, np.array([0, 0, 0]))
+                    params=[self.parameters["pos"], self.parameters["phi"], self.parameters["psi"], self.parameters["xi"]],
+                    compute=lambda pos, phi, psi, xi: get_rotation_z_transform_matrix(phi, np.array([0, 0, pos.z])) @ get_rotation_y_transform_matrix(psi, np.array([0, 0, 0])) @ get_rotation_x_transform_matrix(xi, np.array([0, 0, 0]))
                 )
             )
 

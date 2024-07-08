@@ -79,6 +79,8 @@ class HexapodSimulator:
 		# setup the GUI (disable the useless windows)
 		if gui:
 			self.physics = bc.BulletClient(connection_mode=p.GUI)
+			#command_button_id = p.addUserDebugParameter("Show Commands", 0, 1, 1)
+			#actual_button_id = p.addUserDebugParameter("Show Actual Values", 0, 1, 0)
 			self.physics.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 			self.physics.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
 			self.physics.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
@@ -106,7 +108,7 @@ class HexapodSimulator:
 
 		# bullet links number corresponding to the legs
 		self.leg_link_ids = [17, 14, 2, 5, 8, 11]
-		self.set_robot_feet_friction(self.botId, lateral_friction=1.0)  # Set the desired friction coefficient
+		# self.set_robot_feet_friction(self.botId, lateral_friction=1.0)  # Set the desired friction coefficient
 		self.descriptor = {17 : [], 14 : [], 2 : [], 5 : [], 8 : [], 11 : []}
 
 		# video makes things much slower
@@ -146,6 +148,7 @@ class HexapodSimulator:
 						maxVelocity=max_velocity)
 				j += 1
 			self.physics.setGravity(0,0, self.GRAVITY)
+			p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
 	def set_friction(self, body_id, lateral_friction):
 		self.physics.changeDynamics(body_id, -1, lateralFriction=lateral_friction)
@@ -236,6 +239,29 @@ class HexapodSimulator:
 					maxVelocity=max_velocity)
 			j += 1
 
+		# # Key mapping
+		# key_mapping = {
+		# 	'w': 'Move Forward',
+		# 	's': 'Move Backward',
+		# 	'a': 'Turn Left',
+		# 	'd': 'Turn Right'
+		# }
+
+		# # Adding key mapping info on screen
+		# text_position = [0.5, 0.5, 0]
+		# for key, action in key_mapping.items():
+		# 	text_id = p.addUserDebugText(f"{key}: {action}", text_position)
+		# 	text_position[1] -= 0.1
+
+		# x_vals = np.linspace(0, 10, 100)
+		# y_vals = np.sin(x_vals)
+		# z_vals = np.zeros_like(x_vals)
+
+		# for i in range(len(x_vals)-1):
+		# 	p.addUserDebugLine([x_vals[i], y_vals[i], z_vals[i]],
+		# 					[x_vals[i+1], y_vals[i+1], z_vals[i+1]],
+		# 					[1, 0, 0], 1)
+
 		#Get contact points between robot and world plane
 		contact_points = self.physics.getContactPoints(self.botId,self.planeId)
 		link_ids = [] #list of links in contact with the ground plane
@@ -322,7 +348,7 @@ class HexapodSimulator:
 		speed = 0
 		phi_speed = 0
 		PHI_SPEED = 1.0
-		SPEED = 0.3
+		SPEED = 0.2
 		if "w" in self.keys_pressed:
 			direction = np.pi/2
 			speed = SPEED
