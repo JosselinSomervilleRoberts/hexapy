@@ -1,19 +1,20 @@
-from hexapod import Hexapod
+from models.hexapod import HexapodModel
 from math_library.vector import Vector
 from math_library.referential import BaseReferential
 import numpy as np
 
-from simulator import HexapodSimulator, rpm_to_rad_s
+from simulation.simulator import HexapodSimulator, rpm_to_rad_s
 import os
-from urdf_parser import parse_urdf_file
+from simulation.urdf_parser import parse_urdf_file
 import time
-
+from function_profiles import _control_signal_bell, interpolate_value_in_array
 
 BODY_HEIGHT = 0.12
 R_LEGS = 0.3
+HEIGHT_LEG = 0.04
 
 class WalkingController:
-    def __init__(self, hexapod: Hexapod):
+    def __init__(self, hexapod: HexapodModel):
         self.hexapod = hexapod
         self.start_time = None
         self.last_update = 0
@@ -152,9 +153,9 @@ class WalkingController:
         return angles
     
     def _get_height_for_phase(self, phase: float):
-        HEIGHT_LEGS = 0.04
-        height_leg = HEIGHT_LEGS * np.sin(np.pi * phase)
-        return height_leg
+        if not hasattr(self, "height_leg_profile") or self.height_leg_profile is None:
+            self.height_leg_profile = _control_signal_bell(0.4, 100) * HEIGHT_LEG
+        return interpolate_value_in_array(self.height_leg_profile, phase)
     
     def _get_mixing_coefficient(self, phase: float):
         DEAD_ZONE = 0.1
@@ -168,7 +169,7 @@ class WalkingController:
 
 
 class DummyController:
-    def __init__(self, hexapod: Hexapod):
+    def __init__(self, hexapod: HexapodModel):
         self.hexapod = hexapod
         self.start_time = time.time()
 
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         leg_start_pos[i] = np.array([r_body * np.cos(angle), r_body * np.sin(angle), 0])
         desired_pos[i] = np.array([R_LEGS * np.cos(angle), R_LEGS * np.sin(angle), 0])
     print(leg_start_pos)
-    hexapod = Hexapod(base, leg_start_pos, leg_start_angles, lengths)
+    hexapod = HexapodModel(base, leg_start_pos, leg_start_angles, lengths)
     hexapod.set_pos(np.array([0, 0, BODY_HEIGHT]))
     for i in range(6):
         hexapod.legs[i].set_end_pos(Vector(desired_pos[i], base))
@@ -247,7 +248,7 @@ if __name__ == "__main__":
     for i in range(6):
         hexapod.legs[i].set_angles(np.array(angles[3*i:3*(i+1)]))
     # print(f"Step: {controller.step(None)}")
-    TORQUE = 5.0 # Nm
+    TORQUE = 1.0 # Nm
     MAX_SPEED = 2000.0 # rpm
     params = {
         # Body
@@ -316,18 +317,26 @@ if __name__ == "__main__":
     print(f"Total mass: {m_total}")
     urf_path = parse_urdf_file(os.path.join(os.path.dirname(__file__), "parametric_hexapod.urdf"), params)
     print(f"URDF file generated at {urf_path}")
-    simu = HexapodSimulator(hexapod, gui=True, urdf=urf_path, dt=1./30)
-    for i in range(0, int(30./simu.dt)): # seconds
+    simu = HexapodSimulator(hexapod, gui=True, urdf=urf_path, dt=1./1000)
+    
+    last_sleep = time.time()
+    while True:
         simu.handle_key_events(controller)
         simu.step(controller)
-        real_angles = simu.get_joints_positions()
+        #real_angles = simu.get_joints_positions()
+        body_pos, angles, velocities, torques = simu.get_pos()
         commands = np.array([float(angle) for angle in hexapod.get_servo_angles()])
-        print(hexapod.get_pos())
-        diff = np.abs(real_angles - commands)
+        # print(hexapod.get_pos())
+        # diff = np.abs(real_angles - commands)
         # Round to 3 decimals
-        diff = np.round(diff, 3)
-        print(f"Real angles: {real_angles}")
-        print(f"Diff angles: {diff}")
-        time.sleep(simu.dt)
+        # diff = np.round(diff, 3)
+        #print(f"Real angles: {real_angles}")
+        #print(f"Diff angles: {diff}")
+        print(f"torques: {torques}")
+
+        time_to_sleep = simu.dt - (time.time() - last_sleep)
+        if time_to_sleep > 0:
+            time.sleep(time_to_sleep)
+        last_sleep = time.time()
     print("=>", simu.get_pos()[0])
     simu.destroy()

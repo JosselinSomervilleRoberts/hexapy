@@ -1,6 +1,9 @@
 import math
 import numpy as np
 
+
+# From Jean-Baptiste Mouret's code
+# Please see the supplementary information of Cully et al., Nature, 2015
 def _control_signal(self, amplitude, phase, duty_cycle, array_dim=100):
     '''
     create a smooth periodic function with amplitude, phase, and duty cycle,
@@ -54,13 +57,34 @@ def _control_signal(self, amplitude, phase, duty_cycle, array_dim=100):
     return final_command
 
 
+def _control_signal_bell(sharpness: float, num_points: int):
+    amplitude = 1.0
+    phase = 0.
+    duty_start = sharpness
+    array_dim = int(num_points / duty_start)
+    return _control_signal(None, amplitude, phase, duty_start, array_dim)[:num_points]
+
+def interpolate_value_in_array(array: np.ndarray, phase: float):
+    """
+    Interpolates a value in an array given a phase between 0 and 1
+    """
+    assert 0 <= phase <= 1
+    num_points = len(array)
+    index = phase * (num_points - 1)
+    rounded_down_index = int(index)
+    rounded_up_index = rounded_down_index + 1
+    diff = index - rounded_down_index
+    value = (1. - diff) * array[rounded_down_index] + diff * array[rounded_up_index]
+    return value
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    amplitude = 0.5
-    phase = 0.
-    duty_cycle = 0.1
+    sharpness = 0.5
     NUM_POINTS = 100
-    array_dim = int(NUM_POINTS/duty_cycle)
-    command = _control_signal(None, amplitude, phase, duty_cycle, array_dim)[:NUM_POINTS]
+    import time
+    t0 = time.time()
+    for _ in range(1000):
+        command = _control_signal_bell(sharpness, NUM_POINTS)
+    print("Time elapsed:", time.time() - t0)
     plt.plot(command)
     plt.show()

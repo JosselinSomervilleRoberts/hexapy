@@ -1,15 +1,15 @@
-from typing import List, Dict
+from typing import List
 from multipledispatch import dispatch
 import numpy as np
 
-from leg import Leg
+from models.leg import Leg
 from math_library.vector import Vector
 from math_library.referential import ParametricReferential, BaseReferential
 from math_library.parameter import ValueParameter, ParametricParameter
 from math_library.utils import get_rotation_z_transform_matrix, get_rotation_y_transform_matrix, get_rotation_x_transform_matrix
 
 
-class Hexapod:
+class HexapodModel:
     def __init__(self, base_referential: BaseReferential, leg_start_pos: np.ndarray, leg_start_phi: np.ndarray, lengths: List[float]):
         self.base_referential = base_referential
         self._build_body_referential()

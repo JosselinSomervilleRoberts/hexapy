@@ -45,19 +45,20 @@ import numpy as np
 import pybullet as p
 import pybullet_utils.bullet_client as bc
 import pybullet_data
-from urdf_parser import parse_urdf_file
+from simulation.urdf_parser import parse_urdf_file
+from typing import Dict, Optional
 
 from pycontrollers.hexapod_controller import HexapodController
-from hexapod import Hexapod
+from models.hexapod import HexapodModel
 
 class HexapodSimulator:
-	def __init__(self, hexapod: Hexapod,
+	def __init__(self, model: HexapodModel,
 			  	gui: bool, 
 				urdf: str, 
 				dt = 1./240.,  # the default for pybullet (see doc)
 				control_dt=0.05,
 				video=''):
-		self.hexapod = hexapod
+		self.model = model
 		self.GRAVITY = -9.81
 		self.dt = dt
 		self.control_dt = control_dt
@@ -68,6 +69,8 @@ class HexapodSimulator:
 		self.safety_turnover = True
 		self.video_output_file = video
 
+		self.last_contact_time: Dict[int, float] = {}
+
 		# the final target velocity is computed using:
 		# kp*(erp*(desiredPosition-currentPosition)/dt)+currentVelocity+kd*(m_desiredVelocity - currentVelocity).
 		# here we set kp to be likely to reach the target position
@@ -75,8 +78,11 @@ class HexapodSimulator:
 		self.kp = 2./12.# * self.control_period
 		self.kd = 0.4
 		# the desired position for the joints
-		self.angles = np.array(self.hexapod.get_servo_angles())
+		self.angles = np.array(self.model.get_servo_angles())
 		# setup the GUI (disable the useless windows)
+		self.gui = gui
+		self.last_step_time = time.time()
+		self.avg_fps = 0.
 		if gui:
 			self.physics = bc.BulletClient(connection_mode=p.GUI)
 			#command_button_id = p.addUserDebugParameter("Show Commands", 0, 1, 1)
@@ -99,9 +105,9 @@ class HexapodSimulator:
 		self.physics.setTimeStep(self.dt)
 		self.physics.setPhysicsEngineParameter(fixedTimeStep=self.dt)
 		self.planeId = self.physics.loadURDF("plane.urdf")
-		self.set_friction(self.planeId, lateral_friction=1.0)  # Set the desired friction coefficient
+		# self.set_friction(self.planeId, lateral_friction=1.0)  # Set the desired friction coefficient
 
-		start_pos = self.hexapod.get_pos() + np.array([0, 0, 1.])
+		start_pos = self.model.get_pos() + np.array([0, 0, 1.])
 		start_orientation = self.physics.getQuaternionFromEuler([0.,0,0])
 		self.botId = self.physics.loadURDF(urdf, basePosition=start_pos, baseOrientation=start_orientation, flags=(p.URDF_USE_SELF_COLLISION))
 		self.joint_list = self._make_joint_list(self.botId)
@@ -119,7 +125,7 @@ class HexapodSimulator:
 		self.physics.setRealTimeSimulation(0)
 		jointFrictionForce=1
 
-		self.angles = self.hexapod.get_servo_angles()
+		self.angles = self.model.get_servo_angles()
 		for joint in range (self.physics.getNumJoints(self.botId)):
 			self.physics.setJointMotorControl2(self.botId, joint,
 				p.POSITION_CONTROL,
@@ -170,7 +176,7 @@ class HexapodSimulator:
 			self.joint_velocities[i] = vel
 			self.joint_torques[i] = torque
 
-		return self.get_pos(), self.joint_angles, self.joint_velocities, self.joint_torques
+		return self.get_pos(), self.joint_angles, self.joint_velocities, self.joint_torques, self.get_contact_points()
 
 
 
@@ -184,12 +190,44 @@ class HexapodSimulator:
 		except p.error as e:
 			print("Warning (destructor of simulator):", e)
 
+	def _update_contact_points(self):
+		# 1. Get contact points between robot and world plane 
+		# at the current time step
+		contact_points = self.physics.getContactPoints(self.botId,self.planeId)
+		link_ids = [] #list of links in contact with the ground plane
+		if(len(contact_points) > 0):
+			for cn in contact_points:
+				linkid= cn[3] #robot link id in contact with world plane
+				if linkid not in link_ids:
+					link_ids.append(linkid)
+		for l in self.leg_link_ids:
+			cns = self.descriptor[l]
+			if l in link_ids:
+				cns.append(1)
+			else:
+				cns.append(0)
+			self.descriptor[l] = cns
+
+		# 2. Update the last contact time for each link
+		for l in link_ids:
+			self.last_contact_time[l] = self.t
+
+	def get_contact_points(self, last_x_dt: Optional[int] = None, auto_delete: bool = True):
+		if last_x_dt is None:
+			last_x_dt = max(1, self.control_period // 2)
+		contact_points = []
+		for l in self.last_contact_time.copy():
+			if self.t - self.last_contact_time[l] < last_x_dt * self.dt:
+				contact_points.append(l)
+			elif auto_delete:
+				del self.last_contact_time[l]
+		return contact_points
+
 
 	def reset(self):
 		assert(0), "not working for now"
 		self.t = 0
 		self.physics.resetSimulation()
-#		self.physics.restoreState(self._init_state)
 		
 
 	def get_pos(self):
@@ -200,6 +238,13 @@ class HexapodSimulator:
 		return self.physics.getBasePositionAndOrientation(self.botId)
 
 	def step(self, controller):
+		if self.gui:
+			dt_since_last_step = time.time() - self.last_step_time
+			COEFF_FPS = 0.95
+			self.avg_fps = COEFF_FPS * self.avg_fps + (1 - COEFF_FPS) / dt_since_last_step
+			# Add debug text
+			# self.physics.addUserDebugText(f"FPS: {self.avg_fps:.1f}", [0, 0, 1], [0, 0, 0])
+
 		if self.i % self.control_period == 0:
 			self.angles = controller.step(self)
 		self.i += 1
@@ -262,29 +307,13 @@ class HexapodSimulator:
 		# 					[x_vals[i+1], y_vals[i+1], z_vals[i+1]],
 		# 					[1, 0, 0], 1)
 
-		#Get contact points between robot and world plane
-		contact_points = self.physics.getContactPoints(self.botId,self.planeId)
-		link_ids = [] #list of links in contact with the ground plane
-		if(len(contact_points) > 0):
-			for cn in contact_points:
-				linkid= cn[3] #robot link id in contact with world plane
-				if linkid not in link_ids:
-					link_ids.append(linkid)
-		for l in self.leg_link_ids:
-			cns = self.descriptor[l]
-			if l in link_ids:
-				cns.append(1)
-			else:
-				cns.append(0)
-			self.descriptor[l] = cns
-		# print(f"Contact links: {link_ids}")
-
 		# don't forget to add the gravity force!
 		self.physics.setGravity(0, 0, self.GRAVITY)
 
 		# finally, step the simulation
 		self.physics.stepSimulation()
 		self.t += self.dt
+		self._update_contact_points()
 		return error
 
 	def get_joints_positions(self):
@@ -368,29 +397,6 @@ class HexapodSimulator:
 		controller.direction = direction
 		controller.speed = speed
 		controller.phi_speed = phi_speed
-
-	def move_robot(self, key):
-		force = 10
-		if key == ord('w'):
-			self.physics.applyExternalForce(self.botId, -1, [force, 0, 0], [0, 0, 0], p.WORLD_FRAME)
-		elif key == ord('s'):
-			self.physics.applyExternalForce(self.botId, -1, [-force, 0, 0], [0, 0, 0], p.WORLD_FRAME)
-		elif key == ord('a'):
-			self.physics.applyExternalTorque(self.botId, -1, [0, 0, force], p.WORLD_FRAME)
-		elif key == ord('d'):
-			self.physics.applyExternalTorque(self.botId, -1, [0, 0, -force], p.WORLD_FRAME)
-
-	def control_camera(self, key):
-		current_cam_pos, current_cam_target, current_cam_up, current_cam_yaw, current_cam_pitch, current_cam_roll, current_cam_dist = self.physics.getDebugVisualizerCamera()
-		if key == ord('i'):
-			current_cam_pos[2] += 0.1
-		elif key == ord('k'):
-			current_cam_pos[2] -= 0.1
-		elif key == ord('j'):
-			current_cam_pos[0] -= 0.1
-		elif key == ord('l'):
-			current_cam_pos[0] += 0.1
-		self.physics.resetDebugVisualizerCamera(current_cam_dist, current_cam_yaw, current_cam_pitch, current_cam_pos)
 
 def rpm_to_rad_s(rpm):
 	return rpm * 2 * np.pi / 60
