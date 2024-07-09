@@ -25,11 +25,11 @@ DEFAULT_VALUES = {
     "limit_servo_3": 4*np.pi/5,
     "torque_max": 1.5,
     "max_speed_rpm": 100,
-    "kp": 0.4,
-    "kd": 0.2,
+    "kp": 0.16,
+    "kd": 0.4,
     "step_size": 0.12,
     "phi_step_size": np.pi/4,
-    "duration_cycle": 0.4,
+    "duration_cycle": 0.5,
 }
 
 
