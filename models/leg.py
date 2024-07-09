@@ -1,6 +1,7 @@
 import numpy as np
-from typing import List, Dict
+from typing import List
 from multipledispatch import dispatch
+import warnings
 
 from math_library.vector import Vector
 from math_library.referential import ParametricReferential
@@ -108,7 +109,8 @@ class Leg:
         A_to_D = self.end_pos.in_ref(self.body) - self.leg_start_pos.in_ref(self.body)
         norm: float = np.linalg.norm(A_to_D.np3())
         if norm > sum(self.lengths):
-            raise ValueError(f"Target position is unreachable. Norm: {norm:.3f}, Sum of lengths: {sum(self.lengths):.3f}")
+            self.alpha, self.beta, self.gamma = 0, 0, 0 
+            warnings.warn(f"Target position is unreachable. Norm: {norm:.3f}, Sum of lengths: {sum(self.lengths):.3f}")
         
         # Alpha
         alpha = np.arctan2(A_to_D.y, A_to_D.x)
@@ -121,7 +123,8 @@ class Leg:
         B_to_D = self.end_pos.in_ref(self.referentials[0]) - posB.in_ref(self.referentials[0])
         distance: float = np.linalg.norm(B_to_D.np3())
         if distance > l2 + l3:
-            raise ValueError(f"Target position is unreachable. Distance: {distance:.3f}, Sum of lengths: {l2 + l3:.3f}")
+            self.beta, self.gamma = 0, 0
+            warnings.warn(f"Target position is unreachable. Distance: {distance:.3f}, Sum of lengths: {l2 + l3:.3f}")
         cos_gamma = (distance**2 - l2**2 - l3**2) / (2 * l2 * l3)
         gamma = np.arccos(cos_gamma)
 

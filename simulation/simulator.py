@@ -38,7 +38,7 @@
 import os
 import time
 import math
-from timeit import default_timer as timer
+from dataclasses import dataclass
 import subprocess 
 import time
 import numpy as np
@@ -46,115 +46,145 @@ import pybullet as p
 import pybullet_utils.bullet_client as bc
 import pybullet_data
 from simulation.urdf_parser import parse_urdf_file
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from pycontrollers.hexapod_controller import HexapodController
 from models.hexapod import HexapodModel
+from simulation.configs.servo import ServoConfig
+
+
+MISSING_JOINT = 9999
+GRAVITY = -9.81
+Z_START = 0.5 # height of the robot at the beginning of the simulation
+NUM_INITIAL_STEPS = 100
+
+
+@dataclass
+class SimulationState:
+	t: float
+	"""Current time in seconds"""
+
+	body_pos: np.ndarray
+	"""Position of the body in meters"""
+
+	commands: np.ndarray
+	"""Desired position of all servos in radians"""
+
+	angles: np.ndarray
+	"""Angles of all servos in radians"""
+
+	velocities: np.ndarray
+	"""Velocities of all servos in rad/s"""
+
+	torques: np.ndarray
+	"""Torques of all servos in N.m"""
+
+	contact_points: List[int]
+	"""List of links in contact with the ground plane"""
+
+	missing_joint_count: int
+	"""Number of missing joints (only different from 0 if the robot is broken)"""
+
+
+@dataclass
+class SimulationConfig:
+	dt: float
+	"""Time in seconds between two steps"""
+
+	control_period: int
+	"""Number of steps between two calls of the controller"""
+
+	video: str
+	"""Path to the video file to save. If empty, no video is saved"""
+
+	gui: bool
+	"""If true, the GUI is displayed"""
+
+	safety_turnover: bool
+	"""If true, the robot is turned over if it falls"""
+
+
+@dataclass
+class HexapodConfig:
+	urdf: str
+	"""Path to the URDF file of the robot"""
+
+	model: HexapodModel
+	"""Model of the robot"""
+
+	servo_configs: Dict[int, ServoConfig]
+	"""Configuration of all servos (indexed by their ID)"""
+
 
 class HexapodSimulator:
-	def __init__(self, model: HexapodModel,
-			  	gui: bool, 
-				urdf: str, 
-				dt = 1./240.,  # the default for pybullet (see doc)
-				control_dt=0.05,
-				video=''):
-		self.model = model
-		self.GRAVITY = -9.81
-		self.dt = dt
-		self.control_dt = control_dt
-		# we call the controller every control_period steps
-		self.control_period = int(control_dt / dt)
+	def __init__(self, hexapod_config: HexapodConfig, config: SimulationConfig):
+		self.model = hexapod_config.model
+		self.hexapod_config = hexapod_config
+		self.config = config
 		self.t = 0
 		self.i = 0
-		self.safety_turnover = True
-		self.video_output_file = video
-
 		self.last_contact_time: Dict[int, float] = {}
 
-		# the final target velocity is computed using:
-		# kp*(erp*(desiredPosition-currentPosition)/dt)+currentVelocity+kd*(m_desiredVelocity - currentVelocity).
-		# here we set kp to be likely to reach the target position
-		# in the time between two calls of the controller
-		self.kp = 2./12.# * self.control_period
-		self.kd = 0.4
 		# the desired position for the joints
-		self.angles = np.array(self.model.get_servo_angles())
-		# setup the GUI (disable the useless windows)
-		self.gui = gui
+		self.commands = np.array(self.model.get_servo_angles())
 		self.last_step_time = time.time()
 		self.avg_fps = 0.
-		if gui:
+		self._create_physics_client()
+		self.planeId = self.physics.loadURDF("plane.urdf")
+		self._load_robot_urdf()
+
+		# bullet links number corresponding to the legs
+		self.leg_link_ids = [17, 14, 2, 5, 8, 11]
+		self.descriptor = {17 : [], 14 : [], 2 : [], 5 : [], 8 : [], 11 : []}
+
+		# Friction [DISABLED FOR NOW]
+		# self.set_friction(self.planeId, lateral_friction=1.0)  # Set the desired friction coefficient
+		# self.set_robot_feet_friction(self.botId, lateral_friction=1.0)  # Set the desired friction coefficient
+
+		# video makes things much slower
+		if (self.config.video != ''):
+			self._stream_to_ffmpeg(self.config.video)
+
+		# put the hexapod on the ground (gently)
+		self.physics.setRealTimeSimulation(0)
+		self._run_initial_steps()
+
+	def _setup_gui(self):
+		assert self.config.gui
+		self.physics.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
+		self.physics.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
+		self.physics.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
+		self.physics.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
+		self.physics.resetDebugVisualizerCamera(cameraDistance=1,
+												cameraYaw=20,
+												cameraPitch=-20,
+												cameraTargetPosition=[1, -0.5, 0.8])
+
+	def _create_physics_client(self):
+		if self.config.gui:
 			self.physics = bc.BulletClient(connection_mode=p.GUI)
-			#command_button_id = p.addUserDebugParameter("Show Commands", 0, 1, 1)
-			#actual_button_id = p.addUserDebugParameter("Show Actual Values", 0, 1, 0)
-			self.physics.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
-			self.physics.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
-			self.physics.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
-			self.physics.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
-			self.physics.resetDebugVisualizerCamera(cameraDistance=1,
-													cameraYaw=20,
-										 			cameraPitch=-20,
-													cameraTargetPosition=[1, -0.5, 0.8])
-			self.keys_pressed = set()
+			self._setup_gui()
 		else:
 			self.physics = bc.BulletClient(connection_mode=p.DIRECT)
 
 		self.physics.setAdditionalSearchPath(pybullet_data.getDataPath())
 		self.physics.resetSimulation()
-		self.physics.setGravity(0,0,self.GRAVITY)
-		self.physics.setTimeStep(self.dt)
-		self.physics.setPhysicsEngineParameter(fixedTimeStep=self.dt)
-		self.planeId = self.physics.loadURDF("plane.urdf")
-		# self.set_friction(self.planeId, lateral_friction=1.0)  # Set the desired friction coefficient
+		self.physics.setGravity(0,0,GRAVITY)
+		self.physics.setTimeStep(self.config.dt)
+		self.physics.setPhysicsEngineParameter(fixedTimeStep=self.config.dt)
 
-		start_pos = self.model.get_pos() + np.array([0, 0, 1.])
+	def _load_robot_urdf(self):
+		start_pos = self.model.get_pos() + np.array([0, 0, Z_START])
 		start_orientation = self.physics.getQuaternionFromEuler([0.,0,0])
-		self.botId = self.physics.loadURDF(urdf, basePosition=start_pos, baseOrientation=start_orientation, flags=(p.URDF_USE_SELF_COLLISION))
+		self.botId = self.physics.loadURDF(self.hexapod_config.urdf, basePosition=start_pos, baseOrientation=start_orientation, flags=(p.URDF_USE_SELF_COLLISION))
 		self.joint_list = self._make_joint_list(self.botId)
 
-		# bullet links number corresponding to the legs
-		self.leg_link_ids = [17, 14, 2, 5, 8, 11]
-		# self.set_robot_feet_friction(self.botId, lateral_friction=1.0)  # Set the desired friction coefficient
-		self.descriptor = {17 : [], 14 : [], 2 : [], 5 : [], 8 : [], 11 : []}
-
-		# video makes things much slower
-		if (video != ''):
-			self._stream_to_ffmpeg(self.video_output_file)
-
-		# put the hexapod on the ground (gently)
-		self.physics.setRealTimeSimulation(0)
-		jointFrictionForce=1
-
-		self.angles = self.model.get_servo_angles()
-		for joint in range (self.physics.getNumJoints(self.botId)):
-			self.physics.setJointMotorControl2(self.botId, joint,
-				p.POSITION_CONTROL,
-				force=jointFrictionForce)
-		for t in range(0, 100):
+	def _run_initial_steps(self):
+		self.commands = self.model.get_servo_angles()
+		for t in range(0, NUM_INITIAL_STEPS):
+			self._move_joints()
+			self.physics.setGravity(0,0, GRAVITY)
 			self.physics.stepSimulation()
-			# move the joints
-			missing_joint_count = 0
-			j = 0
-			for joint in self.joint_list:
-				if(joint==1000):
-					missing_joint_count += 1
-				else:
-					info = self.physics.getJointInfo(self.botId, joint)
-					lower_limit = info[8]
-					upper_limit = info[9]
-					max_force = info[10]
-					max_velocity = info[11]
-					pos = min(max(lower_limit, self.angles[j]), upper_limit)
-					self.physics.setJointMotorControl2(self.botId, joint,
-						p.POSITION_CONTROL,
-						positionGain=self.kp,
-						velocityGain=self.kd,
-						targetPosition=pos,
-						force=max_force,
-						maxVelocity=max_velocity)
-				j += 1
-			self.physics.setGravity(0,0, self.GRAVITY)
-			p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
 	def set_friction(self, body_id, lateral_friction):
 		self.physics.changeDynamics(body_id, -1, lateralFriction=lateral_friction)
@@ -164,7 +194,7 @@ class HexapodSimulator:
 			self.physics.changeDynamics(robot_id, leg_link_id, lateralFriction=lateral_friction)
 
 
-	def get_state(self):
+	def get_state(self) -> SimulationState:
 		# Get joint infos
 		self.joint_torques = np.zeros(len(self.joint_list))
 		self.joint_angles = np.zeros(len(self.joint_list))
@@ -176,14 +206,21 @@ class HexapodSimulator:
 			self.joint_velocities[i] = vel
 			self.joint_torques[i] = torque
 
-		return self.get_pos(), self.joint_angles, self.joint_velocities, self.joint_torques, self.get_contact_points()
-
-
+		return SimulationState(
+			t = self.t,
+			body_pos = self.get_pos(),
+			commands = self.commands,
+			angles = self.joint_angles,
+			velocities = self.joint_velocities,
+			torques = self.joint_torques,
+			contact_points = self.get_contact_points(),
+			missing_joint_count = self.missing_joint_count
+		)
 
 	def destroy(self):
 		try:
 			self.physics.disconnect()
-			if self.video_output_file != '':
+			if self.config.video != '':
 				self.ffmpeg_pipe.stdin.close()
 				self.ffmpeg_pipe.stderr.close()
 				self.ffmpeg_pipe.wait()
@@ -214,21 +251,19 @@ class HexapodSimulator:
 
 	def get_contact_points(self, last_x_dt: Optional[int] = None, auto_delete: bool = True):
 		if last_x_dt is None:
-			last_x_dt = max(1, self.control_period // 2)
+			last_x_dt = max(1, self.config.control_period // 2)
 		contact_points = []
 		for l in self.last_contact_time.copy():
-			if self.t - self.last_contact_time[l] < last_x_dt * self.dt:
+			if self.t - self.last_contact_time[l] < last_x_dt * self.config.dt:
 				contact_points.append(l)
 			elif auto_delete:
 				del self.last_contact_time[l]
 		return contact_points
 
-
 	def reset(self):
 		assert(0), "not working for now"
 		self.t = 0
 		self.physics.resetSimulation()
-		
 
 	def get_pos(self):
 		'''
@@ -236,96 +271,54 @@ class HexapodSimulator:
 		Use p.getEulerFromQuaternion to convert the quaternion to Euler if needed.
 		'''
 		return self.physics.getBasePositionAndOrientation(self.botId)
-
-	def step(self, controller):
-		if self.gui:
-			dt_since_last_step = time.time() - self.last_step_time
-			COEFF_FPS = 0.95
-			self.avg_fps = COEFF_FPS * self.avg_fps + (1 - COEFF_FPS) / dt_since_last_step
-			# Add debug text
-			# self.physics.addUserDebugText(f"FPS: {self.avg_fps:.1f}", [0, 0, 1], [0, 0, 0])
-
-		if self.i % self.control_period == 0:
-			self.angles = controller.step(self)
-		self.i += 1
-		
-		# 24 FPS dt =1/240 : every 10 frames
-		if self.video_output_file != '' and self.i % (int(1. / (self.dt * 24))) == 0: 
+	
+	def _save_video_if_necessary(self):
+		# 24 FPS
+		if self.config.video != '' and self.i % (int(1. / (self.dt * 24))) == 0: 
 			camera = self.physics.getDebugVisualizerCamera()
 			img = p.getCameraImage(camera[0], camera[1], renderer=p.ER_BULLET_HARDWARE_OPENGL)
 			self.ffmpeg_pipe.stdin.write(img[2].tobytes())
 
+	def _check_safety_turnover(self) -> bool:
+		if not self.config.safety_turnover:
+			return False
 		#Check if roll pitch are not too high
-		error = False
 		self.euler = self.physics.getEulerFromQuaternion(self.get_pos()[1])
-		if(self.safety_turnover):
-			if((abs(self.euler[1]) >= math.pi/2) or (abs(self.euler[0]) >= math.pi/2)):
-				error = True
-
-		# move the joints
-		missing_joint_count = 0
-		j = 0
-		for joint in self.joint_list:
-			if(joint==1000):
-				missing_joint_count += 1
+		if((abs(self.euler[1]) >= math.pi/2) or (abs(self.euler[0]) >= math.pi/2)):
+			return True
+		return False
+	
+	def _move_joints(self):
+		self.missing_joint_count = 0
+		for j, joint_id in enumerate(self.joint_list):
+			if(joint_id==MISSING_JOINT):
+				self.missing_joint_count += 1
 			else:
-				info = self.physics.getJointInfo(self.botId, joint)
-				lower_limit = info[8]
-				upper_limit = info[9]
-				max_force = info[10]
-				max_velocity = info[11]
-				pos = min(max(lower_limit, self.angles[j]), upper_limit)
-				self.physics.setJointMotorControl2(self.botId, joint,
+				# info = self.physics.getJointInfo(self.botId, joint_id)
+				servo_config: ServoConfig = self.hexapod_config.servo_configs[joint_id]
+				pos = min(max(servo_config.lower_limit, self.commands[j]), servo_config.upper_limit)
+				self.physics.setJointMotorControl2(self.botId, joint_id,
 					p.POSITION_CONTROL,
-					positionGain=self.kp,
-					velocityGain=self.kd,
+					positionGain=servo_config.kp,
+					velocityGain=servo_config.kd,
 					targetPosition=pos,
-					force=max_force,
-					maxVelocity=max_velocity)
-			j += 1
+					force=servo_config.max_torque,
+					maxVelocity=servo_config.max_velocity
+				)
 
-		# # Key mapping
-		# key_mapping = {
-		# 	'w': 'Move Forward',
-		# 	's': 'Move Backward',
-		# 	'a': 'Turn Left',
-		# 	'd': 'Turn Right'
-		# }
-
-		# # Adding key mapping info on screen
-		# text_position = [0.5, 0.5, 0]
-		# for key, action in key_mapping.items():
-		# 	text_id = p.addUserDebugText(f"{key}: {action}", text_position)
-		# 	text_position[1] -= 0.1
-
-		# x_vals = np.linspace(0, 10, 100)
-		# y_vals = np.sin(x_vals)
-		# z_vals = np.zeros_like(x_vals)
-
-		# for i in range(len(x_vals)-1):
-		# 	p.addUserDebugLine([x_vals[i], y_vals[i], z_vals[i]],
-		# 					[x_vals[i+1], y_vals[i+1], z_vals[i+1]],
-		# 					[1, 0, 0], 1)
-
-		# don't forget to add the gravity force!
-		self.physics.setGravity(0, 0, self.GRAVITY)
-
-		# finally, step the simulation
+	def step(self, controller):
+		if self.i % self.config.control_period == 0:
+			self.commands = controller.step(self)
+		self.i += 1
+		
+		self._save_video_if_necessary()
+		error = self._check_safety_turnover()
+		self._move_joints()
+		self.physics.setGravity(0, 0, GRAVITY)
 		self.physics.stepSimulation()
-		self.t += self.dt
+		self.t += self.config.dt
 		self._update_contact_points()
 		return error
-
-	def get_joints_positions(self):
-		''' return the actual position in the physics engine'''
-		p = np.zeros(len(self.joint_list))
-		i = 0
-		# be careful that the joint_list is not necessarily in the same order as 
-		# in bullet (see make_joint_list)
-		for joint in self.joint_list:
-			p[i] = self.physics.getJointState(self.botId, joint)[0]
-			i += 1
-		return p
 
 
 	def _stream_to_ffmpeg(self, fname):
@@ -362,44 +355,9 @@ class HexapodSimulator:
 					joint_list += [joint]
 					joint_found = True
 			if(joint_found==False):
-				joint_list += [1000] #if the joint is not here (aka broken leg case) put 1000
+				joint_list += [MISSING_JOINT] #if the joint is not here (aka broken leg case) put MISSING_JOINT
 		return joint_list
-	
-	def handle_key_events(self, controller):
-		keys = self.physics.getKeyboardEvents()
-		for k, v in keys.items():
-			if v & p.KEY_IS_DOWN:
-				self.keys_pressed.add(chr(k))
-			elif v & p.KEY_WAS_RELEASED:
-				self.keys_pressed.remove(chr(k))
 
-		direction = 0
-		speed = 0
-		phi_speed = 0
-		PHI_SPEED = 1.0
-		SPEED = 0.2
-		if "w" in self.keys_pressed:
-			direction = np.pi/2
-			speed = SPEED
-		elif "s" in self.keys_pressed:
-			direction = -np.pi/2
-			speed = SPEED
-		if "a" in self.keys_pressed:
-			direction = np.pi
-			speed = SPEED
-		elif "d" in self.keys_pressed:
-			direction = 0
-			speed = SPEED
-		if "j" in self.keys_pressed:
-			phi_speed = PHI_SPEED
-		elif "k" in self.keys_pressed:
-			phi_speed = -PHI_SPEED
-		controller.direction = direction
-		controller.speed = speed
-		controller.phi_speed = phi_speed
-
-def rpm_to_rad_s(rpm):
-	return rpm * 2 * np.pi / 60
 
 # for an unkwnon reason, connect/disconnect works only if this is a function
 def test_ref_controller():

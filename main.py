@@ -3,38 +3,53 @@ from math_library.vector import Vector
 from math_library.referential import BaseReferential
 import numpy as np
 
-from simulation.simulator import HexapodSimulator, rpm_to_rad_s
+from simulation.simulator import HexapodSimulator, SimulationConfig, SimulationState, HexapodConfig
 import os
 from simulation.urdf_parser import parse_urdf_file
 import time
 from function_profiles import _control_signal_bell, interpolate_value_in_array
+from simulation.interactions import KeyboardHandler
+from simulation.utils import parse_args, get_params_for_urdf, setup_model
 
 BODY_HEIGHT = 0.12
 R_LEGS = 0.3
 HEIGHT_LEG = 0.04
 
+
+def sign(value: float) -> int:
+    return 1 if value >= 0 else -1
+
 class WalkingController:
-    def __init__(self, hexapod: HexapodModel):
+    def __init__(self, hexapod: HexapodModel, params: dict):
         self.hexapod = hexapod
         self.start_time = None
         self.last_update = 0
+
+        # Params
+        self.step_size = params["step_size"]
+        self.phi_step_size = params["phi_step_size"]
+        self.duration_cycle = params["duration_cycle"]
         
         # Values for the walking gait
-        self.direction = np.pi/2 # angle in rad
+        self.direction = 0 # angle in rad
         self.speed = 0.3 # m/s
         self.phi_speed = 0. # rad/s
 
         # Values for the current cycle
-        self.cycle_duration = 0.5 # s
         self.cycle_start_time = None
         self.cycle_start_pos = np.zeros(3)
         self.cycle_leg_start_pos = np.zeros((6, 3))
         self.cycle_start_phi = 0
         self.in_cycle = False
-        self.cycle_direction = 1
-        self.cycle_speed = 0.1
-        self.cycle_phi_speed = 0.0
+        self.cycle_direction = 0.
+        self.cycle_speed = 0.
+        self.cycle_phi_speed = 0.
         self.last_update = None
+
+    def set_command(self, direction: float, speed: float, phi_speed: float):
+        self.direction = direction
+        self.speed = speed
+        self.phi_speed = phi_speed
 
     def step(self, simulator):
         t = simulator.t
@@ -69,9 +84,9 @@ class WalkingController:
                 self.cycle_start_phi = self.hexapod.phi_orientation
 
                 # Destination
-                self.cycle_end_time = self.cycle_start_time + self.cycle_duration
-                self.cycle_end_pos = self.cycle_start_pos + Vector(self.speed * self.cycle_duration * np.array([np.cos(self.direction), np.sin(self.direction), 0]), self.hexapod.base_referential).np3()
-                self.cycle_end_phi = self.cycle_start_phi + self.phi_speed * self.cycle_duration
+                self.cycle_end_time = self.cycle_start_time + self.duration_cycle * max(abs(self.speed), abs(self.phi_speed))
+                self.cycle_end_pos = self.cycle_start_pos + Vector(self.speed * self.step_size * np.array([np.cos(self.direction), np.sin(self.direction), 0]), self.hexapod.base_referential).np3()
+                self.cycle_end_phi = self.cycle_start_phi + self.phi_speed * self.phi_step_size
                 self.hexapod.phi_orientation = self.cycle_end_phi
                 self.hexapod.set_pos(self.cycle_end_pos)
                 self.cycle_leg_end_pos = self._get_angles_rest()[1]
@@ -91,7 +106,7 @@ class WalkingController:
             
         # In a cycle
         if self.in_cycle:
-            phase = (t - self.cycle_start_time) / self.cycle_duration
+            phase = (t - self.cycle_start_time) / self.duration_cycle
             self.angles = self._get_angles_in_cycle(phase)
             return self.angles
 
@@ -141,7 +156,6 @@ class WalkingController:
 
         height_leg = self._get_height_for_phase(phase_rel)
         coef = self._get_mixing_coefficient(phase_rel)
-        print(f"Phase: {phase:.3f}, Height: {height_leg:.3f}, Body height: {self.hexapod.z:.3f}")
         for i in indices_in_air:
             leg_pos[i] = (1 - coef) * self.cycle_leg_start_pos[i] + coef * self.cycle_leg_end_pos[i]
             leg_pos[i][2] = height_leg
@@ -223,127 +237,50 @@ class DummyController:
         return self.angles
 
 if __name__ == "__main__":
-    leg_start_angles = np.array([np.pi/3, 0, -np.pi/3, -2*np.pi/3, np.pi, 2*np.pi/3])
-    r_body: float = 0.1
-    l1, l2, l3 = 0.06, 0.09, 0.15
-    lengths = np.array([l1, l2, l3])
+    args = parse_args()
+    params_urdf, servo_configs = get_params_for_urdf(vars(args))
+    params = {**params_urdf, **vars(args)}
+    urf_path = parse_urdf_file(args.urdf_path, params_urdf)
+    print(f"URDF file generated at {urf_path}")
     base = BaseReferential()
-    leg_start_pos = np.zeros((6, 3))
-    desired_pos = np.zeros((6, 3))
-    for i in range(6):
-        angle = leg_start_angles[i]
-        leg_start_pos[i] = np.array([r_body * np.cos(angle), r_body * np.sin(angle), 0])
-        desired_pos[i] = np.array([R_LEGS * np.cos(angle), R_LEGS * np.sin(angle), 0])
-    print(leg_start_pos)
-    hexapod = HexapodModel(base, leg_start_pos, leg_start_angles, lengths)
-    hexapod.set_pos(np.array([0, 0, BODY_HEIGHT]))
-    for i in range(6):
-        hexapod.legs[i].set_end_pos(Vector(desired_pos[i], base))
-    #for i in range(6):
-    #    hexapod.legs[i].set_angles(hexapod.legs[1].alpha, hexapod.legs[1].beta, hexapod.legs[1].gamma)
-    for j in range(6):
-        print(f"Desired: {desired_pos[j]}, Actual: {hexapod.legs[j].get_positions()[-1].in_ref(base).np3()}, Angles: {hexapod.legs[j].get_angles()}")
-    controller = WalkingController(hexapod)
+    hexapod = setup_model(params, base)
+    controller = WalkingController(hexapod, params)
     angles = controller._get_angles_rest()[0]
-    for i in range(6):
-        hexapod.legs[i].set_angles(np.array(angles[3*i:3*(i+1)]))
-    # print(f"Step: {controller.step(None)}")
-    TORQUE = 5.0 # Nm
-    MAX_SPEED = 2000.0 # rpm
-    params = {
-        # Body
-        "r_body": r_body,
-        "z_body": 0.04,
-        "m_body": 1.031,
-        # Servo 1
-        "torque_servo_1": TORQUE,
-        "lower_servo_1": -np.pi/2,
-        "upper_servo_1": np.pi/2,
-        "v_servo_1": rpm_to_rad_s(MAX_SPEED),
-        # Phalanx 1
-        "l1": l1,
-        "r1": 0.02,
-        "m1": 0.02,
-        # Servo 2
-        "torque_servo_2": TORQUE,
-        "lower_servo_2": -np.pi,
-        "upper_servo_2": np.pi,
-        "v_servo_2": rpm_to_rad_s(MAX_SPEED),
-        # Phalanx 2
-        "l2": l2,
-        "r2": 0.02,
-        "m2": 0.184,
-        # Servo 3
-        "torque_servo_3": TORQUE,
-        "lower_servo_3": -np.pi,
-        "upper_servo_3": np.pi,
-        "v_servo_3": rpm_to_rad_s(MAX_SPEED),
-        # Phalanx 3
-        "l3": l3,
-        "r3": 0.02,
-        "m3": 0.04,
-        # Leg 0
-        "phi_body_leg_0": np.pi/3,
-        "x_body_leg_0": - r_body * np.cos(np.pi/3),
-        "y_body_leg_0": + r_body * np.sin(np.pi/3),
-        "z_body_leg_0": 0.0,
-        # Leg 1
-        "phi_body_leg_1": 0.0,
-        "x_body_leg_1": 0,
-        "y_body_leg_1": r_body,
-        "z_body_leg_1": 0.0,
-        # Leg 2
-        "phi_body_leg_2": -np.pi/3,
-        "x_body_leg_2": + r_body * np.cos(np.pi/3),
-        "y_body_leg_2": + r_body * np.sin(np.pi/3),
-        "z_body_leg_2": 0.0,
-        # Leg 3
-        "phi_body_leg_3": np.pi / 3,
-        "x_body_leg_3": + r_body * np.cos(np.pi/3),
-        "y_body_leg_3": - r_body * np.sin(np.pi/3),
-        "z_body_leg_3": 0.0,
-        # Leg 4
-        "phi_body_leg_4": 0.0,
-        "x_body_leg_4": 0.0,
-        "y_body_leg_4": - r_body,
-        "z_body_leg_4": 0.0,
-        # Leg 5
-        "phi_body_leg_5": - np.pi / 3,
-        "x_body_leg_5": - r_body * np.cos(np.pi/3),
-        "y_body_leg_5": - r_body * np.sin(np.pi/3),
-        "z_body_leg_5": 0.0,
-    }
     m_total = params["m_body"] + 6 * (params["m1"] + params["m2"] + params["m3"])
     print(f"Total mass: {m_total}")
-    urf_path = parse_urdf_file(os.path.join(os.path.dirname(__file__), "urdfs/hexapod_parametric.urdf"), params)
-    print(f"URDF file generated at {urf_path}")
-    simu = HexapodSimulator(hexapod, gui=True, urdf=urf_path, dt=1./100)
-    
-    last_sleep = time.time()
-    while True:
-        simu.handle_key_events(controller)
-        simu.step(controller)
-        body_pos, angles, velocities, torques, contact_points = simu.get_state()
-        print(f"Contact points: {contact_points}")
-        # torques_3.append(torques[2])
-        # if len(torques_3) > 1000:
-        #     break
-        real_angles = simu.get_joints_positions()
-        commands = np.array([float(angle) for angle in hexapod.get_servo_angles()])
-        # print(hexapod.get_pos())
-        # diff = np.abs(real_angles - commands)
-        # # Round to 3 decimals
-        # diff = np.round(diff, 3)
-        # print(f"Real angles: {real_angles}")
-        # print(f"Diff angles: {diff}")
-        # print(f"Torques: {torques}")
 
-        time_to_sleep = simu.dt - (time.time() - last_sleep)
-        if time_to_sleep > 0:
-            time.sleep(time_to_sleep)
-        last_sleep = time.time()
-    print("=>", simu.get_pos()[0])
-    import matplotlib.pyplot as plt
-    plt.plot(torques_3)
-    plt.show()
+    # Simulation
+    simu_config = SimulationConfig(
+        dt=1./params["frequency"],
+        control_period=params["control_period"],
+        video=params["video"],
+        gui=not params["disable_gui"],
+        safety_turnover=not params["disable_safety_turnover"],
+    )
+    hexapod_config = HexapodConfig(
+        urdf=urf_path,
+        model=hexapod,
+        servo_configs=servo_configs,
+    )
+    simu = HexapodSimulator(hexapod_config=hexapod_config, config=simu_config)
+    keyboard_handler = KeyboardHandler()
+    keyboard_handler.physics_client = simu.physics
+    last_sleep = time.time()
+    error: bool = False
+    try:
+        while not error:
+            keyboard_handler.update(controller)
+            error: bool = simu.step(controller)
+            state: SimulationState = simu.get_state()
+    
+
+            time_to_sleep = simu_config.dt - (time.time() - last_sleep)
+            if time_to_sleep > 0:
+                time.sleep(time_to_sleep)
+            last_sleep = time.time()
+        if error:
+            print("Error in simulation: safety turnover")
+    except KeyboardInterrupt:
+        print("Simulation stopped by user")
+
     simu.destroy()

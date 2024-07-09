@@ -25,7 +25,6 @@ class HexapodModel:
                 )
             )
             self.legs_referentials.append(referential_start_leg)
-            print("Origin of leg 0", Vector(0, 0, 0, self.legs_referentials[0]).in_ref(base_referential).np3())
             leg = Leg(Vector(0, 0, 0, referential_start_leg), lengths, leg_start_phi[i])
             self.legs.append(leg)
 
