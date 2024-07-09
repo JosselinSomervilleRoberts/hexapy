@@ -13,7 +13,7 @@ DEFAULT_VALUES = {
     "z_body": 0.12,
     "height_body": 0.12,
     "r_body": 0.1,
-    "r_legs": 0.3,
+    "r_legs": 0.275,
     "m1": 0.1,
     "m2": 0.1,
     "m3": 0.025,
@@ -25,11 +25,11 @@ DEFAULT_VALUES = {
     "limit_servo_3": 4*np.pi/5,
     "torque_max": 1.5,
     "max_speed_rpm": 100,
-    "kp": 0.16,
-    "kd": 0.4,
-    "step_size": 0.12,
+    "kp": 0.16*1.2,
+    "kd": 0.4*1.2,
+    "step_size": 0.13,
     "phi_step_size": np.pi/4,
-    "duration_cycle": 0.5,
+    "duration_cycle": 0.3,
 }
 
 

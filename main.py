@@ -85,7 +85,8 @@ class WalkingController:
 
                 # Destination
                 self.cycle_end_time = self.cycle_start_time + self.duration_cycle * max(abs(self.speed), abs(self.phi_speed))
-                self.cycle_end_pos = self.cycle_start_pos + Vector(self.speed * self.step_size * np.array([np.cos(self.direction), np.sin(self.direction), 0]), self.hexapod.base_referential).np3()
+                direction = self.direction + hexapod.phi_orientation
+                self.cycle_end_pos = self.cycle_start_pos + Vector(self.speed * self.step_size * np.array([np.cos(direction), np.sin(direction), 0]), self.hexapod.base_referential).np3()
                 self.cycle_end_phi = self.cycle_start_phi + self.phi_speed * self.phi_step_size
                 self.hexapod.phi_orientation = self.cycle_end_phi
                 self.hexapod.set_pos(self.cycle_end_pos)
