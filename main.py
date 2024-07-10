@@ -11,8 +11,6 @@ from function_profiles import _control_signal_bell, interpolate_value_in_array
 from simulation.interactions import KeyboardHandler
 from simulation.utils import parse_args, get_params_for_urdf, setup_model
 
-BODY_HEIGHT = 0.12
-R_LEGS = 0.3
 HEIGHT_LEG = 0.04
 
 
@@ -29,6 +27,8 @@ class WalkingController:
         self.step_size = params["step_size"]
         self.phi_step_size = params["phi_step_size"]
         self.duration_cycle = params["duration_cycle"]
+        self.r_legs = params["r_legs"]
+        self.height_body = params["height_body"]
         
         # Values for the walking gait
         self.direction = 0 # angle in rad
@@ -114,12 +114,12 @@ class WalkingController:
             
     def _get_angles_rest(self):
         # At rest the legs are rotated by pi/3 in the pseudo referential
-        self.hexapod.z = BODY_HEIGHT
+        self.hexapod.z = self.height_body
         angles = []
         positions = []
         angles_ref_leg = np.array([np.pi/3, 0, -np.pi/3, -2*np.pi/3, np.pi, 2*np.pi/3])
         for i in range(6):
-            position = Vector(R_LEGS * np.cos(angles_ref_leg[i]), R_LEGS * np.sin(angles_ref_leg[i]), 0., self.hexapod.body_pseudo_referential)
+            position = Vector(self.r_legs * np.cos(angles_ref_leg[i]), self.r_legs * np.sin(angles_ref_leg[i]), 0., self.hexapod.body_pseudo_referential)
             self.hexapod.legs[i].set_end_pos(position)
             position_np3 = self.hexapod.legs[i].get_positions()[-1].in_ref(self.hexapod.base_referential).np3()
             angles += self.hexapod.legs[i].get_angles()
